@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Monsa Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header id="top" hidden>
+    <a href="#create" class="brand" id="brand">Monsa Studio</a>
+    <button id="menuBtn" class="menu-btn" aria-label="Menu">☰</button>
+    <nav id="nav">
+      <a href="#create">Create</a>
+      <a href="#products">Products</a>
+      <a href="#models">Models</a>
+      <a href="#gallery">Gallery</a>
+      <a href="#admin" id="adminLink" hidden>Admin</a>
+      <button id="logoutBtn" class="link">Log out</button>
+    </nav>
+  </header>
+  <main id="view"></main>
+  <div id="toast" hidden></div>
+  <script src="/app.js"></script>
+</body>
+</html>

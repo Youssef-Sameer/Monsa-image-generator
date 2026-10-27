@@ -1,0 +1,5 @@
+[
+  { "id": "model-a", "name": "Model A", "enabled": true, "default": true, "images": [], "description": "young Egyptian woman in her mid-20s, long dark hair, warm brown skin, natural minimal makeup, slim build, calm natural expression" },
+  { "id": "model-b", "name": "Model B", "enabled": true, "default": false, "images": [], "description": "young Egyptian woman in her mid-20s wearing a neatly wrapped neutral beige hijab, modern modest style, warm light-brown skin, soft natural makeup, slim build, calm expression" },
+  { "id": "model-c", "name": "Model C", "enabled": true, "default": false, "images": [], "description": "elegant Egyptian woman around 30 wearing a soft neutral hijab and a flowing cream linen abaya, warm skin, graceful posture, calm expression" }
+]
