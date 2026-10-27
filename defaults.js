@@ -1,4 +1,8 @@
-{
+// Monsa Studio — default settings. The Admin page can change all of these (changes are saved in your browser).
+// "Reset to default" in Admin brings back what is written here.
+window.DEFAULTS = {
+// ----- styles, poses, colours, sizes, AI engines, feature switches -----
+options: {
   "features": {
     "onModel": true,
     "productOnly": true,
@@ -62,4 +66,23 @@
     { "id": "nano-banana-2", "name": "Nano Banana 2 (needs paid pollen)", "model": "google/gemini-3.1-flash-image", "maxRefs": 14, "sizeRule": "exact", "costPerImage": 0.08, "enabled": false, "default": false },
     { "id": "nano-banana-pro", "name": "Nano Banana Pro (needs paid pollen)", "model": "google/gemini-3-pro-image", "maxRefs": 14, "sizeRule": "exact", "costPerImage": 0.15, "enabled": false, "default": false }
   ]
-}
+},
+// ----- all wording sent to the AI. Words in {curly brackets} are filled in by the app -----
+prompts: {
+  "productOnly": "Create a professional product photograph of the {product_type} shown in the product reference image(s). No person in the picture. The product stands or lies naturally, centred, sharp and well lit.",
+  "onModel": "Create a professional fashion photograph of the model shown in the model reference image(s) with the {product_type} shown in the product reference image(s). Keep the model exactly the same person: same face, hair, skin tone and body. Pose: {pose}. Framing: {framing}. She wears {outfit}. Natural, calm expression.",
+  "clothingOnModel": "Create a professional fashion photograph of the model shown in the model reference image(s) WEARING the garment shown in the product reference image(s). Keep the model exactly the same person: same face, hair, skin tone and body. The garment must fit her naturally. Rest of the outfit: {outfit}. Pose: {pose}. Framing: {framing}. Natural, calm expression.",
+  "references": "Reference images: the first {product_count} image(s) show the product{model_part}.",
+  "accuracy": "PRODUCT ACCURACY (critical): this is a handmade product. Keep it EXACTLY as in the product photos: same shape, size relative to the body, colours, crochet/raffia/fabric texture, embroidery pattern, print, handles, chain and clasp details. Do NOT add logos, text, letters or extra decorations to the product. The product must be clearly visible, in sharp focus and true to colour. No text or watermark anywhere in the image.",
+  "aspect": "Composition for a {ratio} image.",
+  "modelSheet": "A model reference sheet of one fictional AI-generated fashion model, on a plain light-grey studio background, soft even light. Show the same woman four times side by side: front view full body, side view full body, back view full body, and a face close-up. Simple neutral fitted clothing. Description: {description}. Photorealistic, consistent identity across all four views, no text.",
+  "edit": "Edit the first reference image: {instruction}. Change only what is asked. Keep everything else the same, especially the product (shape, colours, texture, details) and the model's identity. No text or watermark.",
+  "moreLikeThis": "Create a new variation in the same style, mood, lighting and composition as the last reference image, with a slightly different pose and angle."
+},
+// ----- starter models -----
+models: [
+  { "id": "model-a", "name": "Model A", "enabled": true, "default": true, "images": [], "description": "young Egyptian woman in her mid-20s, long dark hair, warm brown skin, natural minimal makeup, slim build, calm natural expression" },
+  { "id": "model-b", "name": "Model B", "enabled": true, "default": false, "images": [], "description": "young Egyptian woman in her mid-20s wearing a neatly wrapped neutral beige hijab, modern modest style, warm light-brown skin, soft natural makeup, slim build, calm expression" },
+  { "id": "model-c", "name": "Model C", "enabled": true, "default": false, "images": [], "description": "elegant Egyptian woman around 30 wearing a soft neutral hijab and a flowing cream linen abaya, warm skin, graceful posture, calm expression" }
+]
+};

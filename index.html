@@ -6,7 +6,7 @@
   <title>Monsa Studio</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header id="top" hidden>
@@ -17,12 +17,14 @@
       <a href="#products">Products</a>
       <a href="#models">Models</a>
       <a href="#gallery">Gallery</a>
-      <a href="#admin" id="adminLink" hidden>Admin</a>
-      <button id="logoutBtn" class="link">Log out</button>
+      <a href="#admin">Admin</a>
+      <button id="lockBtn" class="link" hidden>Lock admin</button>
     </nav>
   </header>
   <main id="view"></main>
   <div id="toast" hidden></div>
-  <script src="/app.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="defaults.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
