@@ -167,6 +167,7 @@ async function boot() {
     const v = await DB.get(name);
     S[name] = v === undefined ? fallback(name) : v;
   }
+  addNewDefaults();
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
   const siteName = S.settings.siteName || 'Monsa Studio';
   document.title = siteName;
@@ -174,6 +175,26 @@ async function boot() {
   if (!S.settings.setupDone) return renderWelcome();
   document.getElementById('top').hidden = false;
   route();
+}
+
+// When a website update adds new engines or prompts, add them to settings saved earlier in this browser.
+function addNewDefaults() {
+  let promptsAdded = false, enginesAdded = false;
+  for (const k of Object.keys(DEFAULTS.prompts)) if (!(k in S.prompts)) { S.prompts[k] = DEFAULTS.prompts[k]; promptsAdded = true; }
+  const engines = S.options.engines || (S.options.engines = []);
+  const known = S.settings.knownEngines || engines.map(e => e.id);
+  for (const e of DEFAULTS.options.engines) {
+    if (known.includes(e.id)) continue;
+    if (e.default) engines.forEach(x => (x.default = false));
+    engines.unshift(clone(e));
+    known.push(e.id);
+    enginesAdded = true;
+  }
+  const firstTime = !S.settings.knownEngines;
+  S.settings.knownEngines = known;
+  if (promptsAdded) save('prompts');
+  if (enginesAdded) save('options');
+  if ((enginesAdded || firstTime) && S.settings.setupDone) save('settings');
 }
 
 function renderWelcome() {
@@ -217,8 +238,52 @@ function b64ToBlob(b64) {
   return new Blob([bytes], { type });
 }
 
-// Sends a prompt (+ reference images) to Pollinations and returns the new image. Swap this to use another service.
-async function callEngine(engine, prompt, refIds, w, hgt, seed) {
+// Puts a photo on a white canvas with the final image shape (the free engine keeps the shape of its input).
+async function canvasInput(id, w, hgt, fillRatio) {
+  const scale = 1024 / Math.max(w, hgt);
+  const cw = Math.round(w * scale / 16) * 16, ch = Math.round(hgt * scale / 16) * 16;
+  const c = document.createElement('canvas');
+  c.width = cw; c.height = ch;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, cw, ch);
+  const blob = id && await DB.getFile(id);
+  if (blob) {
+    const img = await createImageBitmap(blob);
+    const k = Math.min(cw * fillRatio / img.width, ch * fillRatio / img.height);
+    ctx.drawImage(img, (cw - img.width * k) / 2, (ch - img.height * k) / 2, img.width * k, img.height * k);
+  }
+  return new Promise(resolve => c.toBlob(resolve, 'image/jpeg', 0.92));
+}
+
+// The free engine: a public Hugging Face app (FLUX Kontext). No key needed, but it has a daily free limit and can be busy.
+async function callSpace(engine, prompt, input) {
+  const base = engine.space.replace(/\/$/, '') + '/gradio_api';
+  const busyMsg = 'The free AI is busy or today\'s free limit is used up. Try again later, or use Copy prompt / another engine.';
+  const fd = new FormData();
+  fd.append('files', input, 'input.jpg');
+  const up = await fetch(base + '/upload', { method: 'POST', body: fd }).catch(() => null);
+  if (!up || !up.ok) throw new Error(busyMsg);
+  const [path] = await up.json();
+  const start = await fetch(base + '/call/infer', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ data: [{ path, meta: { _type: 'gradio.FileData' } }, prompt, 0, true, engine.guidance || 2.5, engine.steps || 28] }),
+  });
+  if (!start.ok) throw new Error(busyMsg);
+  const { event_id } = await start.json();
+  const stream = await (await fetch(`${base}/call/infer/${event_id}`)).text();
+  const done = stream.match(/event: complete\s*\ndata: (.*)/);
+  if (!done) {
+    const err = stream.match(/event: error\s*\ndata: (.*)/);
+    throw new Error(err && err[1] !== 'null' ? 'The free AI said: ' + err[1] : busyMsg);
+  }
+  const out = JSON.parse(done[1])[0];
+  return (await fetch(out.url || `${base}/file=${out.path}`)).blob();
+}
+
+// Sends a prompt (+ reference images) to the chosen engine and returns the new image. Add new services here.
+async function callEngine(engine, prompt, refIds, w, hgt, seed, fillRatio = 0.7) {
+  if (engine.provider === 'huggingface') return callSpace(engine, prompt, await canvasInput(refIds[0], w, hgt, fillRatio));
   const key = (S.settings.pollinationsKey || '').trim();
   if (!key) throw new Error('No Pollinations key yet. Add it in Admin > Settings, or use Copy prompt instead.');
   const refs = refIds.slice(0, engine.maxRefs || 10);
@@ -287,8 +352,16 @@ function buildJob(r) {
   const parts = [P[base], model && `The model: ${model.description}.`, style.prompt, type.prompt, P.references, P.aspect, P.accuracy,
     r.extra && r.extra.trim() && 'Extra notes: ' + r.extra.trim()];
   const prompt = fill(parts.filter(p => p && p.trim()).join('\n\n'), v);
-  return { prompt, refs, size, product, model, style };
+
+  // short version for the Free engine, which sees only the first product photo
+  v.model = model ? model.description : '';
+  v.style = fill(style.prompt || '', v);
+  const freeBase = !onModel ? 'freeProductOnly' : type.id === 'clothing' ? 'freeClothingOnModel' : 'freeOnModel';
+  const short = fill([P[freeBase], r.extra && r.extra.trim()].filter(Boolean).join(' '), v);
+  return { prompt, short, refs, size, product, model, style };
 }
+
+const isFree = eng => eng.provider === 'huggingface';
 
 function usage() {
   const m = month();
@@ -321,13 +394,23 @@ const rand = () => Math.floor(Math.random() * 2e9);
 async function generate(r) {
   const job = buildJob(r);
   const eng = engine(r.engine);
-  let prompt = job.prompt;
-  const refs = [...job.refs];
-  if (r.likeImage) { refs.push(r.likeImage); prompt += '\n\n' + S.prompts.moreLikeThis; }
+  const free = isFree(eng);
+  let prompt = free ? job.short : job.prompt;
+  let refs = [...job.refs];
+  let fillRatio = 0.7;
+  if (r.likeImage) {
+    if (free) { refs = [r.likeImage]; fillRatio = 1; prompt = S.prompts.moreLikeThis + ' Keep the product exactly identical.'; }
+    else { refs.push(r.likeImage); prompt += '\n\n' + S.prompts.moreLikeThis; }
+  }
   const count = Math.max(1, Math.min(4, r.count || 1));
   const cost = eng.costPerImage || 0;
   checkLimit(cost * count);
-  const settled = await Promise.allSettled(Array.from({ length: count }, () => callEngine(eng, prompt, refs, job.size.width, job.size.height, rand())));
+  const one = () => callEngine(eng, prompt, refs, job.size.width, job.size.height, rand(), fillRatio);
+  let settled;
+  if (free) { // one at a time, to be gentle with the free service
+    settled = [];
+    for (let i = 0; i < count; i++) settled.push(await one().then(value => ({ status: 'fulfilled', value }), reason => ({ status: 'rejected', reason })));
+  } else settled = await Promise.allSettled(Array.from({ length: count }, one));
   const images = [], errors = [];
   for (const s of settled) {
     if (s.status === 'fulfilled') images.push(await addToGallery(s.value, r, prompt, eng, cost, job.style));
@@ -342,11 +425,11 @@ async function editImage(g, instruction) {
   if (!instruction.trim()) throw new Error('Type what you want to change.');
   const eng = engine(g.settings.engine);
   const product = byId(S.products, g.productId);
-  const refs = [g.file, ...(product ? product.images : [])];
+  const refs = isFree(eng) ? [g.file] : [g.file, ...(product ? product.images : [])];
   const prompt = fill(S.prompts.edit, { instruction });
   checkLimit(eng.costPerImage || 0);
   const size = pick('sizes', g.settings.size);
-  const blob = await callEngine(eng, prompt, refs, size.width, size.height, -1);
+  const blob = await callEngine(eng, prompt, refs, size.width, size.height, -1, 1);
   const entry = await addToGallery(blob, { ...g.settings, editOf: g.id, instruction }, prompt, eng, eng.costPerImage || 0, pick('styles', g.style));
   log('Edited an image: ' + instruction);
   return { images: [entry], errors: [] };
@@ -379,7 +462,7 @@ function renderCreate() {
   const n = (() => { let i = 0; return () => ++i; })();
 
   const parts = [h('h1', {}, 'Create images')];
-  if (!S.settings.pollinationsKey && F().oneClickGenerate) parts.push(h('div', { class: 'notice' },
+  if (eng && !isFree(eng) && !S.settings.pollinationsKey && F().oneClickGenerate) parts.push(h('div', { class: 'notice' },
     'No AI key yet, so one-click Generate won\'t work. You can still use "Copy prompt" below. ',
     h('a', { href: '#admin/settings' }, 'Add the free Pollinations key')));
   if (usage().near) parts.push(h('div', { class: 'notice' }, 'This month\'s cost is close to the limit set in Admin > Settings.'));
@@ -629,7 +712,7 @@ function modelEditor(m) {
     checkLimit(eng.costPerImage || 0);
     const refs = [];
     for (const f of photos.files) refs.push(await saveFile(await readImage(f)));
-    const blob = await callEngine(eng, sheetPrompt(), refs, 1536, 1024, -1);
+    const blob = await callEngine(eng, sheetPrompt(), refs, 1536, 1024, -1, 0.9);
     images.unshift(await saveFile(blob));
     S.costs.push({ cost: eng.costPerImage || 0, what: 'Model sheet', createdAt: new Date().toISOString() });
     await save('costs');
@@ -779,15 +862,16 @@ const OPTION_FIELDS = {
   scenes: ['name', 'id', 'enabled', 'prompt'], poses: ['name', 'id', 'enabled', 'prompt'],
   framings: ['name', 'id', 'enabled', 'prompt'], outfits: ['name', 'id', 'enabled', 'prompt'],
   sizes: ['name', 'id', 'ratio', 'width', 'height', 'enabled', 'default'],
-  engines: ['name', 'id', 'model', 'costPerImage', 'maxRefs', 'sizeRule', 'enabled', 'default'],
+  engines: ['name', 'id', 'provider', 'space', 'model', 'costPerImage', 'maxRefs', 'sizeRule', 'steps', 'guidance', 'enabled', 'default'],
 };
 const FIELD_HELP = {
   usesBackground: 'Show background colours', usesScene: 'Show lifestyle scenes', default: 'Default', enabled: 'Enabled (visible on Create)',
   prompt: 'Text sent to the AI', model: 'Pollinations model name', costPerImage: 'Cost per image (pollen)', maxRefs: 'Max reference images',
   sizeRule: 'Size rule ("exact" or "openai")', id: 'ID (no spaces; used inside the app)',
+  provider: 'Provider (empty = Pollinations, "huggingface" = free app)', space: 'Free app address (huggingface only)', steps: 'Steps (free app)', guidance: 'Guidance (free app)',
 };
 const BOOL = new Set(['enabled', 'default', 'usesBackground', 'usesScene']);
-const NUM = new Set(['width', 'height', 'costPerImage', 'maxRefs']);
+const NUM = new Set(['width', 'height', 'costPerImage', 'maxRefs', 'steps', 'guidance']);
 const slug = s => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'item-' + newId();
 
 // A generic editor for any list of options: edit, add, reorder, enable/disable and delete.
@@ -862,6 +946,7 @@ function adminPrompts(body) {
     productOnly: 'Product only mode', onModel: 'On model mode (bags & accessories)', clothingOnModel: 'On model mode, clothing (model wears it)',
     references: 'Explains which reference image is which', accuracy: 'Product accuracy rules (added to every image)', aspect: 'Image shape',
     modelSheet: 'Model reference sheet (Models page)', edit: '"Edit with text" on results', moreLikeThis: '"More like this" on results',
+    freeOnModel: 'Free engine: on model', freeClothingOnModel: 'Free engine: on model, clothing', freeProductOnly: 'Free engine: product only',
   };
   const saveBtn = h('button', { class: 'btn' }, 'Save');
   saveBtn.onclick = () => busy(saveBtn, async () => { S.prompts = clone(p); await save('prompts'); log('Edited prompts'); toast('Prompts saved'); });
@@ -881,7 +966,7 @@ function adminPrompts(body) {
   });
   put(body,
     h('p', { class: 'muted' }, 'Words in {curly brackets} are filled in automatically: {product_type}, {background}, {scene}, {pose}, {framing}, {outfit}, {ratio}, {product_count}, {model_part}, {description}, {instruction}. Style, pose, scene and product-type wording is edited under Options.'),
-    Object.keys(p).map(k => h('div', { class: 'item' }, h('h3', {}, help[k] || k),
+    Object.keys(p).map(k => k.startsWith('_') ? h('p', { class: 'muted' }, p[k]) : h('div', { class: 'item' }, h('h3', {}, help[k] || k),
       h('textarea', { value: p[k], style: 'min-height:110px', oninput: e => (p[k] = e.target.value) }))),
     h('div', { class: 'row summary' }, h('span', { class: 'grow' }, 'Prompts'), test, reset, saveBtn));
 }

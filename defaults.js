@@ -60,7 +60,8 @@ options: {
     { "id": "square", "name": "Square 1:1", "ratio": "1:1", "width": 1024, "height": 1024, "enabled": true, "default": false }
   ],
   "engines": [
-    { "id": "klein", "name": "FLUX.2 Klein (free key, fast)", "model": "black-forest-labs/flux.2-klein-4b", "maxRefs": 10, "sizeRule": "exact", "costPerImage": 0.005, "enabled": true, "default": true },
+    { "id": "free-kontext", "name": "Free (no key)", "provider": "huggingface", "space": "https://black-forest-labs-flux-1-kontext-dev.hf.space", "steps": 28, "guidance": 2.5, "costPerImage": 0, "enabled": true, "default": true },
+    { "id": "klein", "name": "FLUX.2 Klein (free key, fast)", "model": "black-forest-labs/flux.2-klein-4b", "maxRefs": 10, "sizeRule": "exact", "costPerImage": 0.005, "enabled": true, "default": false },
     { "id": "gpt-mini", "name": "GPT Image Mini (free key)", "model": "openai/gpt-image-1-mini", "maxRefs": 16, "sizeRule": "openai", "costPerImage": 0.02, "enabled": true, "default": false },
     { "id": "nano-banana", "name": "Nano Banana (needs paid pollen)", "model": "google/gemini-2.5-flash-image", "maxRefs": 3, "sizeRule": "exact", "costPerImage": 0.04, "enabled": false, "default": false },
     { "id": "nano-banana-2", "name": "Nano Banana 2 (needs paid pollen)", "model": "google/gemini-3.1-flash-image", "maxRefs": 14, "sizeRule": "exact", "costPerImage": 0.08, "enabled": false, "default": false },
@@ -77,7 +78,11 @@ prompts: {
   "aspect": "Composition for a {ratio} image.",
   "modelSheet": "A model reference sheet of one fictional AI-generated fashion model, on a plain light-grey studio background, soft even light. Show the same woman four times side by side: front view full body, side view full body, back view full body, and a face close-up. Simple neutral fitted clothing. Description: {description}. Photorealistic, consistent identity across all four views, no text.",
   "edit": "Edit the first reference image: {instruction}. Change only what is asked. Keep everything else the same, especially the product (shape, colours, texture, details) and the model's identity. No text or watermark.",
-  "moreLikeThis": "Create a new variation in the same style, mood, lighting and composition as the last reference image, with a slightly different pose and angle."
+  "moreLikeThis": "Create a new variation in the same style, mood, lighting and composition as the last reference image, with a slightly different pose and angle.",
+  "_free": "The prompts below are short versions for the Free (no key) engine. It sees only ONE photo (the first product photo), so the model is described in words.",
+  "freeOnModel": "Professional fashion photo of {model}, holding or wearing this exact {product_type} naturally. Pose: {pose}. Framing: {framing}. She wears {outfit}. {style} Keep the {product_type} exactly identical to the input photo: same shape, size, colours, texture, handles, chain and clasp. No text, no logos.",
+  "freeClothingOnModel": "Professional fashion photo of {model} wearing this exact garment. Keep its pattern, embroidery, colours and cut exactly the same. Rest of the outfit: {outfit}. Pose: {pose}. Framing: {framing}. {style} No text, no logos.",
+  "freeProductOnly": "Professional product photo of this exact {product_type}, no person. {style} Keep the product exactly identical: same shape, colours, texture and details. No text, no logos."
 },
 // ----- starter models -----
 models: [
